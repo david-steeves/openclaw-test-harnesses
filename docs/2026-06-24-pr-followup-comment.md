@@ -1,4 +1,4 @@
-Coming back to this thread with more evidence rather than letting it drop. Earlier in the discussion I posted bench numbers from a MacBook rig and the per-claw "governed mode" reframe; I've since built reference review teams against that design, reproduced the numbers on independent hardware, and — more importantly — spent some time on the argument I think the RFC actually needs to be making. Trying to lead with that part this time instead of the table.
+Coming back to this thread with more evidence and still eager to learn more about others' thoughts. Earlier in the discussion I posted bench numbers from a MacBook rig and the per-claw "governed mode" reframe; I've since built reference review teams against that design, reproduced the numbers on independent hardware, and — more importantly — spent some time on the argument I think the RFC actually needs to be making. Trying to lead with that part this time instead of the table.
 
 ## Where governance lives
 
