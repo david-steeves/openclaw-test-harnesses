@@ -1,0 +1,54 @@
+# control-plane/example.config.yaml
+# Paste-into-your-repo example. Clone, flip `enabled: true` on the teams you
+# want, override 1-2 fields, commit. Two YAML edits, ship.
+#
+# This mirrors the config sketched in
+# plans/2026-06-19-policy-harness-extension.md §"Control-plane config".
+
+version: 1
+
+# Renovate-style preset composition: pull in a default config, then override.
+# Resolution syntax: `<repo-id>:<path-from-repo-root>`.
+extends:
+  - openclaw-test-harnesses:control-plane/example.config.yaml
+
+# System-wide policies. Always evaluated first; cannot be downgraded.
+system_policies:
+  - openclaw-test-harnesses:policies/system/block-ssn.yaml
+  - openclaw-test-harnesses:policies/system/block-api-key.yaml
+
+teams:
+  pii-reviewer:
+    enabled: true
+    seams: [raw_to_processed, processed_to_curated]
+    analysts:
+      - openclaw-test-harnesses:teams/pii-reviewer/analysts/ssn_detector.py
+      - openclaw-test-harnesses:teams/pii-reviewer/analysts/pii_cooccurrence_warn.py
+      - openclaw-test-harnesses:teams/pii-reviewer/analysts/salary_warn.py
+    policies:
+      - openclaw-test-harnesses:policies/teams/pii-warn.yaml
+    severity_map:
+      critical: block
+      high: warn
+    scope:
+      data_classes: [hr, payroll]
+    clarifying_prompts:
+      upload: openclaw-test-harnesses:clarifying-prompts/upload-prompts.example.yaml
+      analyze: openclaw-test-harnesses:clarifying-prompts/analyze-prompts.example.yaml
+
+  phi-reviewer:
+    enabled: true
+    seams: [raw_to_processed, processed_to_curated]
+    analysts:
+      - openclaw-test-harnesses:teams/phi-reviewer/analysts/phi_marker_block.py
+      - openclaw-test-harnesses:teams/phi-reviewer/analysts/patient_id_warn.py
+      - openclaw-test-harnesses:teams/phi-reviewer/analysts/free_text_phi_scan.py
+    policies:
+      - openclaw-test-harnesses:policies/teams/phi-block.yaml
+    severity_map:
+      critical: block
+      high: warn
+    scope:
+      data_classes: [warehouse, snowflake, healthcare]
+    clarifying_prompts:
+      upload: openclaw-test-harnesses:clarifying-prompts/upload-prompts.example.yaml

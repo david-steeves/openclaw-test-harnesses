@@ -1,0 +1,28 @@
+# policies/shared-lib/phi-detector.yaml
+# Composable PHI-marker detector. Triggered by presence of any of:
+#   - MRN-shaped column (medical_record_number, mrn, medical_record)
+#   - ICD-10 / diagnosis_code column with non-empty value
+#   - patient_id column with non-empty value
+# Importable; verdict attached by the importing policy.
+
+id: shared-lib/phi-detector
+version: 1
+layer: shared-lib
+description: PHI marker detector. Importable building block.
+
+rule:
+  type: column_presence
+  columns:
+    - mrn
+    - medical_record
+    - medical_record_number
+    - diagnosis
+    - diagnosis_code
+    - patient_id
+  match_when: any_column_non_empty
+
+# Notes for importers:
+# - Free-text PHI scanning (e.g. dates-of-birth embedded in diagnosis_notes)
+#   is a separate analyst (teams/phi-reviewer/analysts/free_text_phi_scan.py),
+#   not a regex policy. Regex on free-text yields too many false positives;
+#   the analyst is the right surface.

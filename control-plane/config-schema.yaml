@@ -1,0 +1,119 @@
+# control-plane/config-schema.yaml
+# JSON Schema (expressed in YAML — draft-07) for the openclaw.config.yaml file
+# that a consuming repo would drop in to enable review teams.
+#
+# Goal: Renovate-style preset composition. User clones example.config.yaml,
+# flips enabled: true on the teams they want, overrides 1-2 fields, ships.
+
+$schema: "http://json-schema.org/draft-07/schema#"
+$id: "https://openclaw.dev/schemas/config.v1.yaml"
+title: openclaw.config.yaml
+description: Top-level config for OpenClaw layered policy + review-team surface.
+type: object
+required: [version, teams]
+additionalProperties: false
+
+properties:
+  version:
+    type: integer
+    enum: [1]
+    description: Schema version. Bumped on breaking change.
+
+  extends:
+    type: array
+    description: |
+      List of preset references to compose into this config (Renovate style).
+      Each entry uses `<repo>:<path>` resolution. Later entries override earlier
+      ones; this config's inline fields override all extends.
+    items:
+      type: string
+      pattern: '^[a-z0-9-]+:[A-Za-z0-9_./-]+\.yaml$'
+
+  system_policies:
+    type: array
+    description: |
+      System-wide policies. Always evaluated first; cannot be downgraded by
+      scoped layers. Precedent: AWS IAM explicit-deny + Microsoft Purview
+      most-restrictive-wins.
+    items:
+      type: string
+      pattern: '^[a-z0-9-]+:[A-Za-z0-9_./-]+\.yaml$'
+
+  teams:
+    type: object
+    description: Map of team-id -> team definition.
+    additionalProperties:
+      $ref: "#/$defs/team"
+
+$defs:
+  team:
+    type: object
+    required: [enabled, seams, analysts, policies]
+    additionalProperties: false
+    properties:
+      enabled:
+        type: boolean
+        description: Master switch. Disabled teams skip all evaluation.
+
+      seams:
+        type: array
+        description: |
+          Pipeline seams this team's analysts register at. Must match seam ids
+          emitted by the substrate (e.g. raw_to_processed, processed_to_curated).
+        items:
+          type: string
+          pattern: '^[a-z][a-z0-9_]*_to_[a-z][a-z0-9_]*$'
+        minItems: 1
+
+      analysts:
+        type: array
+        description: Preset references to Python analyst modules. Resolution = repo:path/to/file.py
+        items:
+          type: string
+          pattern: '^[a-z0-9-]+:[A-Za-z0-9_./-]+\.py$'
+        minItems: 1
+
+      policies:
+        type: array
+        description: Preset references to scoped policy YAML.
+        items:
+          type: string
+          pattern: '^[a-z0-9-]+:[A-Za-z0-9_./-]+\.yaml$'
+
+      severity_map:
+        type: object
+        description: |
+          Maps abstract analyst severity strings to verdict actions. Lets a
+          team translate "critical" -> block locally, while another team
+          translates "critical" -> warn.
+        additionalProperties:
+          type: string
+          enum: [pass, warn, block]
+
+      scope:
+        type: object
+        description: |
+          Declarative scope filter. Events whose metadata.data_class is in
+          scope.data_classes are routed to this team; others bypass.
+        additionalProperties: false
+        properties:
+          data_classes:
+            type: array
+            items:
+              type: string
+              pattern: '^[a-z][a-z0-9_-]*$'
+
+      clarifying_prompts:
+        type: object
+        description: |
+          Optional upload-time and analyze-time decision-tree prompt sets. The
+          operator's answers attach to event.metadata.clarifications and the
+          policy engine reads them during evaluation.
+        additionalProperties: false
+        properties:
+          upload:
+            type: string
+            pattern: '^[a-z0-9-]+:[A-Za-z0-9_./-]+\.yaml$'
+          analyze:
+            type: string
+            pattern: '^[a-z0-9-]+:[A-Za-z0-9_./-]+\.yaml$'

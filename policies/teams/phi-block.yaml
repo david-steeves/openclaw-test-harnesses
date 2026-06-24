@@ -1,0 +1,47 @@
+# policies/teams/phi-block.yaml
+# Scoped to phi-reviewer. PHI markers -> BLOCK; patient-id-only -> WARN.
+
+id: teams/phi-block
+version: 1
+layer: scoped
+scope:
+  team: phi-reviewer
+  data_classes: [warehouse, snowflake, healthcare]
+description: PHI marker BLOCK + patient-id WARN. Scoped to phi-reviewer.
+
+rules:
+  - id: phi-marker-block
+    imports: shared-lib/phi-detector
+    verdict:
+      on_match: block
+      on_no_match: pass
+    audit:
+      rule_id: policy/teams/phi-block/marker.v1
+      layer: scoped
+      severity: critical
+    # This is the rule that the operator can suppress via
+    # `clarifications.phi-detection = "no"` (see upload-prompts.example.yaml
+    # enforcement block). Suppression is logged but the rule is skipped.
+    suppressible_by_clarifications:
+      - prompt_id: phi-detection
+        answer_id: "no"
+
+  - id: patient-id-cooccurrence-warn
+    type: column_cooccurrence
+    groups:
+      - description: patient_id + birth_date + city (re-identification vector)
+        requires_all_non_empty: [patient_id, birth_date, city]
+    match_when: any_group_satisfied
+    verdict:
+      on_match: warn
+      on_no_match: pass
+    audit:
+      rule_id: policy/teams/phi-block/reid.v1
+      layer: scoped
+      severity: high
+    # Not suppressible. Re-identification vectors are too high-stakes to allow
+    # operator-asserted exemption at the scoped layer; the operator should
+    # instead correct the data-class declaration if this is misrouted.
+    suppressible_by_clarifications: []
+
+honors_clarifications: true

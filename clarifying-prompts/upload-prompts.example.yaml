@@ -1,0 +1,66 @@
+# clarifying-prompts/upload-prompts.example.yaml
+# Two upload-time prompts wired together:
+#   1. phi-detection — does this file contain PHI?
+#   2. jurisdiction-scope — where will it be processed? (skipped if no PHI)
+#
+# Answers attach to event.metadata.clarifications.<id>. The PHI block analyst
+# reads `clarifications.phi-detection == "no"` as an operator-asserted exemption.
+
+version: 1
+trigger: upload
+
+prompts:
+  - id: phi-detection
+    question: Does this file contain Protected Health Information (PHI)?
+    type: yesNoWithContext
+    answers:
+      - id: "yes"
+        label: "Yes — contains PHI (MRN, diagnosis codes, patient identifiers, etc.)"
+      - id: "no"
+        label: "No — no PHI present"
+      - id: uncertain
+        label: "Uncertain — please scan"
+    followUp:
+      - when: "yes"
+        prompt:
+          id: jurisdiction-scope
+          question: Is this file destined for a HIPAA-regulated jurisdiction?
+          type: singleSelect
+          answers:
+            - id: us-hipaa
+              label: "United States (HIPAA)"
+            - id: eu-gdpr
+              label: "European Union (GDPR / national HDS)"
+            - id: ca-phipa
+              label: "Canada (PHIPA)"
+            - id: other
+              label: "Other / multi-region"
+    # When the operator asserts "no PHI", the phi-marker-block analyst is
+    # skipped — operator-asserted exemption. Recorded in evidence but not
+    # enforced. Aligns with HIPAA covered-entity self-attestation patterns.
+    enforcement:
+      mode: suppresses
+      whenAnswerId: "no"
+      targets:
+        - openclaw-test-harnesses:teams/phi-reviewer/analysts/phi_marker_block.py
+
+  # Independent prompt — fires on every upload regardless of PHI answer.
+  # Captures intent for downstream policy routing.
+  - id: data-class-declaration
+    question: Which broad category best describes this dataset?
+    type: singleSelect
+    answers:
+      - id: hr
+        label: "HR / employee records"
+      - id: payroll
+        label: "Payroll"
+      - id: healthcare
+        label: "Healthcare / clinical"
+      - id: warehouse
+        label: "Data warehouse / analytics datamart"
+      - id: snowflake
+        label: "Snowflake-hosted analytics"
+      - id: other
+        label: "Other"
+    enforcement:
+      mode: advisory

@@ -1,0 +1,40 @@
+# policies/system/block-ssn.yaml
+# System-wide, always evaluated first. Cannot be downgraded by scoped layers.
+#
+# Detects US-format SSN (\d{3}-\d{2}-\d{4}) anywhere in payload. Verdict: BLOCK.
+# Operator-asserted "clarifications.phi-detection = no" does NOT suppress this
+# (system layer ignores clarifications).
+#
+# Precedent: AWS IAM explicit-deny. This is the OpenClaw analog.
+
+id: system/block-ssn
+version: 1
+layer: system
+description: System-wide SSN block. Always evaluated first; cannot be downgraded.
+
+rule:
+  type: regex
+  # US SSN format. Matches "123-45-6789".
+  # Intentionally strict — area=000, group=00, serial=0000 are invalid SSNs
+  # but we don't bother distinguishing here; the block applies to any match
+  # of the shape regardless of validity (the appearance of an SSN-shaped
+  # string is itself the leak).
+  pattern: '\d{3}-\d{2}-\d{4}'
+  # Apply to all columns by default. To restrict to specific columns, set
+  # `columns: [ssn, social_security_number, ...]`.
+  scope: all_columns
+
+verdict:
+  on_match: block
+  on_no_match: pass
+
+audit:
+  evidence_record:
+    rule_id: policy/system/block-ssn.v1
+    layer: system
+    citation: |
+      AWS IAM explicit-deny precedent. The system layer is the
+      always-evaluated, never-downgraded floor.
+
+# This policy honors NO clarifications. Operator cannot self-attest away an SSN.
+honors_clarifications: false

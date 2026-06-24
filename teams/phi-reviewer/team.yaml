@@ -1,0 +1,41 @@
+# teams/phi-reviewer/team.yaml
+# Reference review team that handles healthcare-warehouse-shaped PHI. Renamed
+# from "snowflake-reviewer" per the parent plan §"Design decisions" Q2.
+
+id: phi-reviewer
+version: 1
+description: |
+  Review team for healthcare-shaped PHI. Detects PHI markers (MRN, diagnosis
+  codes, patient identifiers), patient-id re-identification vectors, and
+  free-text PHI leaks in diagnosis notes.
+
+seams:
+  - raw_to_processed
+  - processed_to_curated
+
+analysts:
+  - id: phi-marker-block
+    module: teams/phi-reviewer/analysts/phi_marker_block.py
+    seams: [raw_to_processed]
+    severity: critical
+  - id: patient-id-warn
+    module: teams/phi-reviewer/analysts/patient_id_warn.py
+    seams: [raw_to_processed]
+    severity: high
+  - id: free-text-phi-scan
+    module: teams/phi-reviewer/analysts/free_text_phi_scan.py
+    seams: [processed_to_curated]
+    severity: high
+
+policies:
+  - openclaw-test-harnesses:policies/teams/phi-block.yaml
+
+severity_map:
+  critical: block
+  high: warn
+
+scope:
+  data_classes: [warehouse, snowflake, healthcare]
+
+clarifying_prompts:
+  upload: openclaw-test-harnesses:clarifying-prompts/upload-prompts.example.yaml

@@ -1,0 +1,84 @@
+# harness/perf/manifest.yaml
+# Extends openclaw-pipeline-bench manifest with a new variant: pipeline-real-claws.
+# Workload params (agents, eps, payload, warmup, steady-state) mirror the bench
+# manifest. The variant differs from pipeline-1-analyst by loading the
+# pii-reviewer + phi-reviewer Python analysts instead of synthetic 1ms-sleep
+# pass-analysts.
+
+bench:
+  name: openclaw-test-harnesses-perf
+  version: 0.1.0
+  rfc: openclaw/rfcs#11
+  extends: openclaw-pipeline-bench:manifest/manifest.yaml
+
+hardware:
+  target: Mac mini M4 Pro
+  os: macOS 15.x (darwin)
+  arch: arm64
+  container_runtime: orbstack
+
+# Mirror bench workload — workload itself is invariant; substrate + analysts
+# are what we vary. Same `total_events_per_sec = 100` shape so bench numbers
+# are directly comparable.
+workload:
+  agents: 10
+  events_per_agent_per_sec: 10
+  total_events_per_sec: 100
+  event_payload_bytes: 512
+  read_back_window: 5
+  warmup_seconds: 60
+  steady_state_seconds: 300
+
+substrate:
+  sqlite:
+    pragmas:
+      journal_mode: WAL
+      synchronous: NORMAL
+      temp_store: MEMORY
+      cache_size: -64000
+
+variants:
+  - id: pipeline-real-claws
+    description: |
+      Three-stage SQLite pipeline + pii-reviewer + phi-reviewer analysts. SSN
+      regex detection at raw->processed; PHI marker + free-text scan at
+      processed->curated. Replays mock-data CSV rows as the event stream so
+      payloads have realistic shapes (not synthetic filler).
+    substrate: sqlite
+    pipeline_stages: [raw, processed, curated]
+    analysts:
+      # Wire-up: harness/perf/runner.py adapts these to the bench's
+      # PassAnalyst/BlockingAnalyst interface using the openclaw-test-harnesses
+      # analyst modules.
+      - seam: raw_to_processed
+        verdict: real-claw
+        team: pii-reviewer
+        module: teams/pii-reviewer/analysts/ssn_detector.py
+        cost_ms: 0
+      - seam: processed_to_curated
+        verdict: real-claw
+        team: phi-reviewer
+        module: teams/phi-reviewer/analysts/free_text_phi_scan.py
+        cost_ms: 0
+
+  - id: pipeline-real-claws-pass-only
+    description: |
+      Like pipeline-real-claws but only with the cheap detectors (no free-text
+      regex scan). Used in monotonicity check: pipeline-noop <=
+      pipeline-real-claws-pass-only <= pipeline-real-claws (mixed).
+    substrate: sqlite
+    pipeline_stages: [raw, processed, curated]
+    analysts:
+      - seam: raw_to_processed
+        verdict: real-claw
+        team: pii-reviewer
+        module: teams/pii-reviewer/analysts/ssn_detector.py
+        cost_ms: 0
+
+metrics:
+  latency_percentiles: [50, 95, 99]
+  rss_sample_hz: 1
+  runs_per_variant: 3
+
+reporting:
+  results_dir: bench/results

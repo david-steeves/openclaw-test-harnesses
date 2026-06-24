@@ -1,0 +1,43 @@
+# policies/teams/pii-warn.yaml
+# Scoped to pii-reviewer. Cannot downgrade system BLOCKs (composition rule).
+#
+# Two rules in this policy:
+#   1. name + DOB co-occurrence -> WARN (re-identification vector)
+#   2. salary column present -> WARN (HR-sensitivity)
+
+id: teams/pii-warn
+version: 1
+layer: scoped
+scope:
+  team: pii-reviewer
+  data_classes: [hr, payroll]
+description: PII warnings for HR-shaped data. Scoped to pii-reviewer.
+
+rules:
+  - id: name-dob-cooccurrence
+    imports: shared-lib/pii-cooccurrence
+    verdict:
+      on_match: warn
+      on_no_match: pass
+    audit:
+      rule_id: policy/teams/pii-warn/name-dob.v1
+      layer: scoped
+      severity: high
+
+  - id: salary-presence
+    type: column_presence
+    columns: [salary, base_pay, total_compensation]
+    match_when: any_column_non_empty
+    verdict:
+      on_match: warn
+      on_no_match: pass
+    audit:
+      rule_id: policy/teams/pii-warn/salary.v1
+      layer: scoped
+      severity: high
+
+# This scoped policy honors `clarifications.data-class-declaration` but the
+# WARN verdicts are not suppressible — the operator can re-classify the data
+# but cannot self-attest away the warning. (Suppression happens at the
+# clarifying-prompts layer via `enforcement.mode = suppresses`, not here.)
+honors_clarifications: true

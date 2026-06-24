@@ -1,0 +1,28 @@
+# docker-compose.yml — openclaw-test-harnesses perf containers
+# Two variants share the same Dockerfile; environment differs per variant.
+# Run via: docker compose run --rm <variant> --duration <s> --output <path>
+
+x-perf-common: &perf-common
+  build:
+    context: .
+    dockerfile: harness/perf/Dockerfile
+  volumes:
+    - ./bench/results:/results
+  working_dir: /app
+
+services:
+  pipeline-real-claws:
+    <<: *perf-common
+    environment:
+      BENCH_VARIANT_ID: pipeline-real-claws
+      PIPELINE_ROOT: /data
+    tmpfs:
+      - /data:size=512m
+
+  pipeline-real-claws-pass-only:
+    <<: *perf-common
+    environment:
+      BENCH_VARIANT_ID: pipeline-real-claws-pass-only
+      PIPELINE_ROOT: /data
+    tmpfs:
+      - /data:size=512m

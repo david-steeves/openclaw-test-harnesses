@@ -1,0 +1,19 @@
+# policies/shared-lib/ssn-detector.yaml
+# Composable rule snippet. Imported by team-scoped policies that want SSN
+# detection without the system-wide BLOCK semantics (e.g. a team that wants
+# SSN -> warn-and-redact instead of block).
+#
+# Library policies have no verdict by themselves. The importing policy
+# attaches the verdict.
+
+id: shared-lib/ssn-detector
+version: 1
+layer: shared-lib
+description: SSN regex detector. Importable building block.
+
+rule:
+  type: regex
+  pattern: '\d{3}-\d{2}-\d{4}'
+  scope: all_columns
+  # When imported by a scoped policy, the scoped policy decides the verdict
+  # and what to do with matches. This file only describes the detector.

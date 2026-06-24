@@ -1,0 +1,42 @@
+# teams/pii-reviewer/team.yaml
+# Reference review team that handles HR-shaped PII. Renamed from "hr-reviewer"
+# per the parent plan §"Design decisions" Q2 — name describes what's reviewed,
+# not source format.
+
+id: pii-reviewer
+version: 1
+description: |
+  Review team for HR/payroll-shaped PII. Detects SSNs (BLOCK via system rule),
+  name+DOB co-occurrence (WARN), and salary presence (WARN).
+
+seams:
+  - raw_to_processed
+  - processed_to_curated
+
+analysts:
+  - id: ssn-detector
+    module: teams/pii-reviewer/analysts/ssn_detector.py
+    seams: [raw_to_processed]
+    severity: critical
+  - id: pii-cooccurrence-warn
+    module: teams/pii-reviewer/analysts/pii_cooccurrence_warn.py
+    seams: [raw_to_processed]
+    severity: high
+  - id: salary-warn
+    module: teams/pii-reviewer/analysts/salary_warn.py
+    seams: [processed_to_curated]
+    severity: high
+
+policies:
+  - openclaw-test-harnesses:policies/teams/pii-warn.yaml
+
+severity_map:
+  critical: block
+  high: warn
+
+scope:
+  data_classes: [hr, payroll]
+
+clarifying_prompts:
+  upload: openclaw-test-harnesses:clarifying-prompts/upload-prompts.example.yaml
+  analyze: openclaw-test-harnesses:clarifying-prompts/analyze-prompts.example.yaml

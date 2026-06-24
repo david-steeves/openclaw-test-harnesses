@@ -1,0 +1,24 @@
+# policies/shared-lib/pii-cooccurrence.yaml
+# Composable co-occurrence detector. Fires when full_name (first + last) AND
+# date_of_birth appear in the same row. This is the classic re-identification
+# vector — neither field alone is sensitive at the WARN level; the combination
+# is.
+#
+# Importable; verdict attached by the importing policy.
+
+id: shared-lib/pii-cooccurrence
+version: 1
+layer: shared-lib
+description: PII co-occurrence detector (name + DOB). Importable building block.
+
+rule:
+  type: column_cooccurrence
+  groups:
+    - description: Name + DOB in same row
+      requires_all_non_empty:
+        - one_of: [full_name, name]
+          # Synthetic field: composed of first_name + last_name if both present.
+        - one_of: [first_name]
+          additional_requires: [last_name]
+        - one_of: [date_of_birth, dob, birth_date]
+  match_when: any_group_satisfied

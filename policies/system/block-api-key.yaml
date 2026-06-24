@@ -1,0 +1,31 @@
+# policies/system/block-api-key.yaml
+# System-wide, always evaluated first. Cannot be downgraded.
+#
+# Detects api_key, api-key, apikey, or similar followed by an `=` or `:` (the
+# leak signature for "credentials in a payload").
+
+id: system/block-api-key
+version: 1
+layer: system
+description: System-wide API-key/secret block. Always evaluated first.
+
+rule:
+  type: regex
+  # Matches "api_key=", "api-key:", "apikey =", etc. Case-insensitive at runtime.
+  pattern: 'api[_-]?key\s*[=:]'
+  scope: all_columns
+  case_sensitive: false
+
+verdict:
+  on_match: block
+  on_no_match: pass
+
+audit:
+  evidence_record:
+    rule_id: policy/system/block-api-key.v1
+    layer: system
+    citation: |
+      Microsoft Purview most-restrictive-policy-wins. Credential leaks are
+      always system-layer concerns regardless of data class.
+
+honors_clarifications: false

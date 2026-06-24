@@ -1,0 +1,136 @@
+# clarifying-prompts/schema.yaml
+# Decision-tree schema for upload-time and analyze-time clarifying prompts.
+# Operator answers attach to event.metadata.clarifications.<prompt-id>;
+# policy engine reads them during evaluation.
+#
+# Surveyed prior-art: Presidio, Purview, Macie, Cloud DLP — none do interactive
+# intent-capture at upload/analyze. Closest analog: Stripe Radar's 4-action
+# model (block / allow / review / challenge). This schema is the novel
+# OpenClaw surface that combines decision-tree skip-logic with policy
+# integration.
+
+$schema: "http://json-schema.org/draft-07/schema#"
+$id: "https://openclaw.dev/schemas/clarifying-prompts.v1.yaml"
+title: Clarifying prompts decision tree
+type: object
+required: [version, prompts]
+additionalProperties: false
+
+properties:
+  version:
+    type: integer
+    enum: [1]
+
+  trigger:
+    type: string
+    enum: [upload, analyze]
+    description: |
+      Which event seam this prompt set fires on. `upload` runs once at ingress;
+      `analyze` runs at the start of an analyze action (e.g. share-with-external,
+      train-model, run-report).
+
+  prompts:
+    type: array
+    description: Ordered list of prompts. Skip-logic + follow-ups branch the tree.
+    items:
+      $ref: "#/$defs/prompt"
+
+$defs:
+  prompt:
+    type: object
+    required: [id, question, type, answers]
+    additionalProperties: false
+    properties:
+      id:
+        type: string
+        pattern: '^[a-z][a-z0-9-]*$'
+        description: |
+          Stable identifier. Operator answers attach at
+          `event.metadata.clarifications.<id>`. Renaming an id is a breaking
+          change.
+
+      question:
+        type: string
+        description: User-facing prompt text.
+
+      type:
+        type: string
+        enum: [yesNoWithContext, yesNo, multiSelect, singleSelect]
+        description: |
+          - yesNo: closed binary; answers = [yes, no]
+          - yesNoWithContext: yes/no/uncertain — uncertain triggers triage analyst
+          - singleSelect: pick one from answers[]
+          - multiSelect: pick any subset of answers[]
+
+      answers:
+        type: array
+        description: Closed answer set. UI surfaces these verbatim.
+        items:
+          type: object
+          required: [id, label]
+          additionalProperties: false
+          properties:
+            id:
+              type: string
+              pattern: '^[a-z][a-z0-9-]*$'
+            label:
+              type: string
+
+      followUp:
+        type: array
+        description: |
+          Conditional follow-up prompts. Triggered when the operator's answer
+          to this prompt matches `when`. Each follow-up is itself a prompt
+          (recursive schema reference).
+        items:
+          type: object
+          required: [when, prompt]
+          additionalProperties: false
+          properties:
+            when:
+              type: string
+              description: |
+                Answer id (from this prompt's answers[]) that triggers the
+                follow-up. Multiple followUp entries with different `when`
+                values create branching.
+            prompt:
+              $ref: "#/$defs/prompt"
+
+      skipCondition:
+        type: object
+        description: |
+          If present, this prompt is skipped when the referenced earlier prompt
+          answered as specified. Used to short-circuit irrelevant branches
+          (e.g. skip jurisdiction question when phi-detection answered "no").
+        additionalProperties: false
+        required: [whenPromptId, whenAnswerId]
+        properties:
+          whenPromptId:
+            type: string
+          whenAnswerId:
+            type: string
+
+      enforcement:
+        type: object
+        description: |
+          Optional. Declares how this prompt's answer feeds policy evaluation.
+          - advisory: answer recorded; policies may read it but no automatic
+            verdict change.
+          - suppresses: if operator picks `whenAnswerId`, named analysts are
+            skipped for this event (operator-asserted exemption).
+          - escalates: if operator picks `whenAnswerId`, event is routed to
+            named team for review before proceeding.
+        additionalProperties: false
+        properties:
+          mode:
+            type: string
+            enum: [advisory, suppresses, escalates]
+          whenAnswerId:
+            type: string
+          targets:
+            type: array
+            description: |
+              For mode=suppresses: analyst module ids to skip.
+              For mode=escalates: team ids to route to.
+            items:
+              type: string

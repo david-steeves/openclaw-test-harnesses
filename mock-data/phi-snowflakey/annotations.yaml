@@ -1,0 +1,77 @@
+# mock-data/phi-snowflakey/annotations.yaml
+
+dataset: phi-snowflakey
+seed: 42
+total_rows: 5000
+data_class: healthcare
+
+annotations:
+  - row_indices_range: [0, 99]
+    expected_verdict: BLOCK
+    fires_policy: system/block-ssn
+    winning_layer: system
+    notes: |
+      ssn + (mrn OR diagnosis_code). System SSN block fires; scoped
+      phi-marker-block also fires (advisory). System wins.
+
+  - row_indices_range: [100, 299]
+    expected_verdict: BLOCK
+    fires_policy: teams/phi-block/marker.v1
+    winning_layer: scoped
+    notes: |
+      mrn or diagnosis_code present, no ssn. Scoped phi-marker-block fires.
+      System layer above PASS = none. Final verdict BLOCK.
+
+  - row_indices_range: [300, 499]
+    expected_verdict: WARN
+    fires_policy: teams/phi-block/reid.v1
+    winning_layer: scoped
+    notes: |
+      patient_id + birth_date + city, no PHI markers, no SSN. Scoped
+      patient-id-warn fires. Final verdict WARN.
+
+  - row_indices_range: [500, 599]
+    expected_verdict: WARN
+    fires_policy: teams/phi-block/free-text-scan.v1
+    winning_layer: scoped
+    notes: |
+      diagnosis_notes contains date or name pattern. Scoped
+      free-text-phi-scan fires. Final verdict WARN.
+
+  - row_indices_range: [600, 699]
+    expected_verdict: PASS
+    fires_policy: none
+    winning_layer: none
+    notes: |
+      Billing codes only. No analyst matches.
+
+  - row_indices_range: [700, 4999]
+    expected_verdict: mixed
+    fires_policy: various
+    winning_layer: various
+    notes: |
+      Fill rows with realistic distribution. ~10% SSN -> BLOCK.
+      ~25% MRN/diagnosis -> BLOCK. Not asserted per-row; asserted in
+      aggregate (block_rate ~= 30%, warn_rate >= 10%).
+
+# Clarifying-prompts gate. When ingested with metadata.clarifications =
+# {"phi-detection": "no"}, the phi-marker-block analyst is suppressed.
+# Rows in 100..299 should then drop to PASS (operator-asserted exemption).
+# Rows in 0..99 stay BLOCK because system layer ignores clarifications.
+clarification_overlays:
+  - clarifications:
+      phi-detection: "no"
+    expected_verdict_overrides:
+      # Rows 100..299 carry MRN + demographics. phi-marker-block is suppressed,
+      # but patient-id-warn still fires (re-identification vector is NOT
+      # suppressible). So the verdict drops BLOCK -> WARN.
+      - row_indices_range: [100, 299]
+        expected_verdict: WARN
+        suppressed_by: clarifications.phi-detection = no (phi-marker-block only)
+        notes: |
+          patient-id-warn is NOT suppressible by clarifications (per
+          phi-block.yaml suppressible_by_clarifications: []). So the row
+          drops from BLOCK to WARN, not PASS.
+      - row_indices_range: [0, 99]
+        expected_verdict: BLOCK
+        notes: System SSN block is not suppressible by clarifications.

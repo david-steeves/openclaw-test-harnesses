@@ -1,0 +1,71 @@
+# clarifying-prompts/analyze-prompts.example.yaml
+# Two analyze-time prompts wired together:
+#   1. output-destination — where will analysis results be shared?
+#       external -> follow-up: signed DPA in place?
+#   2. analysis-depth — read-only vs. write-back? sets policy strictness.
+
+version: 1
+trigger: analyze
+
+prompts:
+  - id: output-destination
+    question: Where will the analysis results be shared?
+    type: singleSelect
+    answers:
+      - id: internal
+        label: "Internal — same data perimeter"
+      - id: external
+        label: "External — third party, vendor, contractor"
+      - id: public
+        label: "Public — publication, press release, marketing"
+    followUp:
+      - when: external
+        prompt:
+          id: signed-dpa
+          question: Is there a signed Data Processing Agreement (DPA) with the external party?
+          type: yesNo
+          answers:
+            - id: "yes"
+              label: "Yes — DPA on file"
+            - id: "no"
+              label: "No — block and escalate to legal"
+          # No DPA on external sharing -> route to legal team for review before
+          # any analyst proceeds.
+          enforcement:
+            mode: escalates
+            whenAnswerId: "no"
+            targets:
+              - legal-review
+      - when: public
+        prompt:
+          id: public-disclosure-review
+          question: Has the public-disclosure review been completed?
+          type: yesNo
+          answers:
+            - id: "yes"
+              label: "Yes — sign-off attached"
+            - id: "no"
+              label: "No — escalate to comms"
+          enforcement:
+            mode: escalates
+            whenAnswerId: "no"
+            targets:
+              - comms-review
+
+  - id: analysis-depth
+    question: What depth of analysis is required?
+    type: singleSelect
+    answers:
+      - id: aggregate-only
+        label: "Aggregate only — counts, sums, percentiles; no individual records"
+      - id: row-level-readonly
+        label: "Row-level read — individual records queried but not modified"
+      - id: row-level-writeback
+        label: "Row-level write-back — annotations / enrichments persist to source"
+    # Skip this prompt if the output is public; aggregate is always implied at
+    # publication time.
+    skipCondition:
+      whenPromptId: output-destination
+      whenAnswerId: public
+    enforcement:
+      mode: advisory

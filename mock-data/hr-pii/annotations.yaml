@@ -1,0 +1,52 @@
+# mock-data/hr-pii/annotations.yaml
+# Row-range -> expected verdict mapping. Loaded by harness/policy-eval/runner.py
+# and asserted against in harness/policy-eval/asserts/test_*.py.
+#
+# Index = row position in data.csv.gz (zero-based, excluding header row).
+
+dataset: hr-pii
+seed: 42
+total_rows: 10000
+data_class: hr
+
+annotations:
+  - row_indices_range: [0, 49]
+    expected_verdict: BLOCK
+    fires_policy: system/block-ssn
+    winning_layer: system
+    notes: |
+      SSN + full_name + DOB. system SSN block fires; scoped pii-warn name-DOB
+      also fires (recorded as advisory). Final verdict BLOCK, winning layer
+      system.
+
+  - row_indices_range: [50, 199]
+    expected_verdict: WARN
+    fires_policy: teams/pii-warn/name-dob.v1
+    winning_layer: scoped
+    notes: |
+      name + DOB present, no SSN. Scoped pii-warn name-dob fires. No system
+      verdict above PASS. Final verdict WARN.
+
+  - row_indices_range: [200, 299]
+    expected_verdict: WARN
+    fires_policy: teams/pii-warn/salary.v1
+    winning_layer: scoped
+    notes: |
+      salary present, no name/DOB/SSN. Scoped pii-warn salary fires. Final
+      verdict WARN.
+
+  - row_indices_range: [300, 399]
+    expected_verdict: PASS
+    fires_policy: none
+    winning_layer: none
+    notes: |
+      employee_id + department only. No analyst matches.
+
+  - row_indices_range: [400, 9999]
+    expected_verdict: mixed
+    fires_policy: various
+    winning_layer: various
+    notes: |
+      Fill rows with realistic distribution. ~30% carry SSN -> BLOCK.
+      ~70% carry DOB; combined with name -> WARN. Not asserted per-row;
+      asserted in aggregate (block_rate ~= 30%, warn_rate ~= 40%).

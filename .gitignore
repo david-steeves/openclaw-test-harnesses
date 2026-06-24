@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.uv-build-*/
+
+# Virtualenvs
+.venv/
+venv/
+env/
+
+# uv
+.uv/
+
+# Verdict tapes + perf results — regenerated per run; keep dir, drop contents
+harness/policy_eval/verdict-tape/*
+!harness/policy_eval/verdict-tape/.gitkeep
+bench/results/*
+!bench/results/.gitkeep
+
+# macOS
+.DS_Store
+
+# Editor noise
+.vscode/
+.idea/
+*.swp
